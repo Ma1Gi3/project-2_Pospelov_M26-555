@@ -17,10 +17,11 @@ def create_table(metadata, table_name, columns):
         print('Некорретный тип данных')
         return metadata
 
-    if name in table_columns:
+    if not name or name in table_columns:
             print(f"Некорректное значение: {column}. Попробуйте снова.")
             return metadata
-    
+
+    table_columns[name] = type_
     metadata[table_name] = table_columns
 
     correct_columns = []
