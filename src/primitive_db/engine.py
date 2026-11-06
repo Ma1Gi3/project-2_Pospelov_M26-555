@@ -1,6 +1,6 @@
 import shlex
-from core import create_table, drop_table
-from utils import load_metadata, save_metadata
+from .core import create_table, drop_table
+from .utils import load_metadata, save_metadata
 
 # src/primitive_db/engine.py
 def print_help():
