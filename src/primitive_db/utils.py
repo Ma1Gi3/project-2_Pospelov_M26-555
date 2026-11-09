@@ -1,15 +1,39 @@
 import json
 import os
 
-metadata_file = 'db_meta.json'
 
 def load_metadata(filepath):
-    try:
-        with open(filepath, 'r') as file:
-            return json.load(file) 
-    except: (FileNotFoundError)
-    return {}
+    if not os.path.exists(filepath):
+        return {}
+
+    with open(filepath, "r", encoding="utf-8") as file:
+        metadata = json.load(file)
+
+    return metadata
+
 
 def save_metadata(filepath, data):
-    with open(filepath, 'w') as file:
-        json.dump(data, file)
+    with open(filepath, "w", encoding="utf-8") as file:
+        json.dump(data, file, ensure_ascii=False, indent=4)
+
+
+def load_table_data(table_name):
+    filepath = f"data/{table_name}.json"
+
+    if not os.path.exists(filepath):
+        return []
+
+    with open(filepath, "r", encoding="utf-8") as file:
+        data = json.load(file)
+
+    return data
+
+
+def save_table_data(table_name, data):
+    os.makedirs("data", exist_ok=True)
+
+    filepath = f"data/{table_name}.json"
+
+    with open(filepath, "w", encoding="utf-8") as file:
+        json.dump(data, file, ensure_ascii=False, indent=4)
+ 
