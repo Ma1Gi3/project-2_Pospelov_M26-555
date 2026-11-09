@@ -18,7 +18,7 @@ def handle_db_errors(func):
 
     return wrapper
 
-def confim_action(action_name):
+def confirm_action(action_name):
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):

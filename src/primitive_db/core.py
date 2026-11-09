@@ -1,58 +1,68 @@
+from .decorators import confirm_action, create_cacher, handle_db_errors, log_time
 from .utils import load_table_data
 
+PERMISSIBLE_TYPES = ['int', 'str', 'bool']
 
+cache_result, clear_cache = create_cacher()
+
+
+@handle_db_errors
 def create_table(metadata, table_name, columns):
+    """Создает новую таблицу"""
     if table_name in metadata:
-        print(f'Ошибка: Таблица "{table_name}" уже существует.')
-        return metadata
+        print('Таблица уже существует')
+        return None
 
-    table_columns = {"ID": "int"}
+    if not table_name.isidentifier():
+        raise ValueError('Некорректное название таблицы')
+
+    table_columns = {'ID': 'int'}
 
     for column in columns:
-        if column.count(":") != 1:
-            print(f"Некорректное значение: {column}. Попробуйте снова.")
-            return metadata
+        parts = column.split(':')
 
-        name, data_type = column.split(":")
+        if len(parts) != 2:
+            raise ValueError('Неверный формат столбца')
 
-        if not name or data_type not in ("int", "str", "bool"):
-            print(f"Некорректное значение: {column}. Попробуйте снова.")
-            return metadata
+        name, type_ = parts
 
-        if name in table_columns:
-            print(f"Некорректное значение: {column}. Попробуйте снова.")
-            return metadata
+        if type_ not in PERMISSIBLE_TYPES:
+            raise ValueError('Некорректный тип данных')
 
-        table_columns[name] = data_type
+        if not name.isidentifier() or name in table_columns:
+            raise ValueError(f'Некорректное название столбца: {name}')
+
+        table_columns[name] = type_
 
     metadata[table_name] = table_columns
 
-    result = []
-
-    for name, data_type in table_columns.items():
-        result.append(f"{name}:{data_type}")
-
-    print(f'Таблица "{table_name}" успешно создана со столбцами:')
-    print(", ".join(result))
+    print(f'Таблица "{table_name}" успешно создана')
 
     return metadata
 
 
+@handle_db_errors
+@confirm_action('удаление таблицы')
 def drop_table(metadata, table_name):
+    """Удаляет таблицу из базы данных"""
     if table_name not in metadata:
-        print(f'Ошибка: Таблица "{table_name}" не существует.')
-        return metadata
+        raise KeyError(table_name)
 
     del metadata[table_name]
 
-    print(f'Таблица "{table_name}" успешно удалена.')
+    clear_cache()
+
+    print(f'Таблица "{table_name}" удалена')
 
     return metadata
 
+
+@handle_db_errors
+@log_time
 def insert(metadata, table_name, values):
+    """Добавляет новую запись в таблицу"""
     if table_name not in metadata:
-        print('Таблица не существует')
-        return None
+        raise KeyError(table_name)
 
     columns = metadata[table_name]
 
@@ -63,8 +73,7 @@ def insert(metadata, table_name, values):
             column_names.append(name)
 
     if len(values) != len(column_names):
-        print('Неверное количество значений')
-        return None
+        raise ValueError('Неверное количество значений')
 
     for i in range(len(values)):
         name = column_names[i]
@@ -81,8 +90,7 @@ def insert(metadata, table_name, values):
             valid = False
 
         if not valid:
-            print(f'Неверный тип данных для столбца {name}')
-            return None
+            raise ValueError(f'Неверный тип данных: {name}')
 
     data = load_table_data(table_name)
 
@@ -99,29 +107,41 @@ def insert(metadata, table_name, values):
 
     data.append(new_record)
 
-    print(f'Запись успешно добавлена. ID = {new_id}')
+    clear_cache()
+
+    print(f'Запись добавлена. ID = {new_id}')
 
     return data
 
+
+@handle_db_errors
+@log_time
 def select(table_data, where_clause=None):
-    if where_clause is None:
-        return table_data
+    """Возвращает все записи или записи подходящие под условие"""
+    key = (repr(table_data), repr(where_clause))
 
-    result = []
+    def get_result():
+        result = []
 
-    for record in table_data:
-        matches = True
+        for record in table_data:
+            matches = True
 
-        for name, value in where_clause.items():
-            if record.get(name) != value:
-                matches = False
+            if where_clause is not None:
+                for name, value in where_clause.items():
+                    if record.get(name) != value:
+                        matches = False
 
-        if matches:
-            result.append(record)
+            if matches:
+                result.append(record.copy())
 
-    return result
+        return result
 
+    return cache_result(key, get_result)
+
+
+@handle_db_errors
 def update(table_data, set_clause, where_clause):
+    """Изменяет записи, подходящие под условие"""
     for record in table_data:
         matches = True
 
@@ -133,9 +153,15 @@ def update(table_data, set_clause, where_clause):
             for name, value in set_clause.items():
                 record[name] = value
 
+    clear_cache()
+
     return table_data
 
+
+@handle_db_errors
+@confirm_action('удаление записей')
 def delete(table_data, where_clause):
+    """Удаляет записи, подходящие под условие"""
     result = []
 
     for record in table_data:
@@ -147,6 +173,8 @@ def delete(table_data, where_clause):
 
         if not matches:
             result.append(record)
+
+    clear_cache()
 
     return result
 

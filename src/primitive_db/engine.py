@@ -23,18 +23,18 @@ def print_help():
 
 def show_table(records, columns):
     table = PrettyTable()
-    
     table.field_names = list(columns.keys())
-    
+
     for record in records:
         row = []
-        
+
         for column in columns:
             row.append(record.get(column))
-            
+
         table.add_row(row)
-            
+
     print(table)
+
 
 def check_conditions(columns, condition):
     for name, value in condition.items():
@@ -59,6 +59,7 @@ def check_conditions(columns, condition):
 
     return True
 
+
 def parse_value(value):
     value = value.strip()
 
@@ -81,6 +82,7 @@ def parse_value(value):
     except ValueError:
         raise ValueError('Неверное значение')
 
+
 def parse_condition(text):
     parts = text.split('=', 1)
 
@@ -95,6 +97,7 @@ def parse_condition(text):
 
     return {column: value}
 
+
 def parse_values(text):
     if not text.strip():
         return []
@@ -103,31 +106,31 @@ def parse_values(text):
     values = []
 
     for part in parts:
-        value = parse_value(part)
-        values.append(value)
+        values.append(parse_value(part))
 
     return values
+
 
 def run():
     filepath = 'db_meta.json'
 
     while True:
-        metadata = load_metadata(filepath)
+            metadata = load_metadata(filepath)
+            user_input = input('Введите данные: ').strip()
 
-        user_input = input('Введите команду: ').strip()
+            if not user_input:
+                continue
 
-        if not user_input:
-            continue
-
-        try:
             arguments = shlex.split(user_input)
 
             if not arguments:
                 continue
 
-            comands = arguments[0]
+            command = arguments[0]
 
-            if comands == 'create_table':
+            if command == 'create_table':
+                arguments = user_input.split()
+
                 if len(arguments) < 3:
                     print('Недостаточно аргументов')
                     continue
@@ -135,10 +138,12 @@ def run():
                 table_name = arguments[1]
                 columns = arguments[2:]
 
-                metadata = create_table(metadata, table_name, columns)
-                save_metadata(filepath, metadata)
+                result = create_table(metadata, table_name, columns)
 
-            elif comands == 'drop_table':
+                if result is not None:
+                    save_metadata(filepath, result)
+
+            elif command == 'drop_table':
                 if len(arguments) != 2:
                     print('Неверное количество аргументов')
                     continue
@@ -149,15 +154,17 @@ def run():
                     print('Таблица не существует')
                     continue
 
-                metadata = drop_table(metadata, table_name)
-                save_metadata(filepath, metadata)
+                result = drop_table(metadata, table_name)
 
-                data_path = 'data/' + table_name + '.json'
+                if result is not None:
+                    save_metadata(filepath, result)
 
-                if os.path.exists(data_path):
-                    os.remove(data_path)
+                    data_path = f'data/{table_name}.json'
 
-            elif comands == 'list_tables':
+                    if os.path.exists(data_path):
+                        os.remove(data_path)
+
+            elif command == 'list_tables':
                 if len(arguments) != 1:
                     print('Неверное количество аргументов')
                     continue
@@ -168,7 +175,7 @@ def run():
                 else:
                     print('Таблицы не найдены')
 
-            elif comands == 'insert':
+            elif command == 'insert':
                 if not user_input.startswith('insert into '):
                     print('Неверная команда insert')
                     continue
@@ -191,19 +198,17 @@ def run():
                     continue
 
                 values = parse_values(values_text)
-
                 data = insert(metadata, table_name, values)
 
                 if data is not None:
                     save_table_data(table_name, data)
 
-            elif comands == 'select':
+            elif command == 'select':
                 if not user_input.startswith('select from '):
                     print('Неверная команда select')
                     continue
 
                 parts = user_input.split(' where ', 1)
-
                 table_name = parts[0].replace('select from ', '').strip()
 
                 if table_name not in metadata:
@@ -223,19 +228,15 @@ def run():
                 else:
                     result = select(data)
 
-                show_table(result, columns)
+                if result is not None:
+                    show_table(result, columns)
 
-            elif comands == 'update':
-                if ' set ' not in user_input:
-                    print('Неверная команда update')
-                    continue
-
-                if ' where ' not in user_input:
+            elif command == 'update':
+                if ' set ' not in user_input or ' where ' not in user_input:
                     print('Неверная команда update')
                     continue
 
                 parts = user_input.split(' set ', 1)
-
                 table_name = parts[0].replace('update ', '').strip()
 
                 if table_name not in metadata:
@@ -243,7 +244,6 @@ def run():
                     continue
 
                 conditions = parts[1].split(' where ', 1)
-
                 set_clause = parse_condition(conditions[0])
                 where_clause = parse_condition(conditions[1])
 
@@ -260,20 +260,19 @@ def run():
                     continue
 
                 data = load_table_data(table_name)
-
                 found = select(data, where_clause)
 
                 if not found:
                     print('Записи не найдены')
                     continue
 
-                data = update(data, set_clause, where_clause)
+                result = update(data, set_clause, where_clause)
 
-                save_table_data(table_name, data)
+                if result is not None:
+                    save_table_data(table_name, result)
+                    print('Записи успешно обновлены')
 
-                print('Записи успешно обновлены')
-
-            elif comands == 'delete':
+            elif command == 'delete':
                 if not user_input.startswith('delete from '):
                     print('Неверная команда delete')
                     continue
@@ -283,7 +282,6 @@ def run():
                     continue
 
                 parts = user_input.split(' where ', 1)
-
                 table_name = parts[0].replace('delete from ', '').strip()
 
                 if table_name not in metadata:
@@ -297,53 +295,29 @@ def run():
                     continue
 
                 data = load_table_data(table_name)
-
                 found = select(data, where_clause)
 
                 if not found:
                     print('Записи не найдены')
                     continue
 
-                data = delete(data, where_clause)
+                result = delete(data, where_clause)
 
-                save_table_data(table_name, data)
+                if result is not None:
+                    save_table_data(table_name, result)
+                    print('Записи успешно удалены')
 
-                print('Записи успешно удалены')
-
-            elif comands == 'info':
-                if len(arguments) != 2:
-                    print('Неверная команда info')
-                    continue
-
-                table_name = arguments[1]
-
-                if table_name not in metadata:
-                    print('Таблица не существует')
-                    continue
-
-                columns = metadata[table_name]
-                data = load_table_data(table_name)
-
-                print('Таблица:', table_name)
-                print('Столбцы:')
-
-                for name in columns:
-                    print(name, '-', columns[name])
-
-                print('Количество записей:', len(data))
-
-            elif comands == 'help':
+            elif command == 'help':
                 print_help()
 
-            elif comands == 'exit':
+            elif command == 'exit':
                 print('Выход из программы')
                 break
 
             else:
                 print('Неизвестная команда')
 
-        except ValueError as error:
-            print('Ошибка:', error)
+        
 
             
 
